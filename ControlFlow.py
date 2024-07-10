@@ -205,6 +205,7 @@ class PyCFG(PyCFG):
 
 class PyCFG(PyCFG):
     def walk(self, node, myparents):
+        #print(node.__class__.__name__)
         fname = "on_%s" % node.__class__.__name__.lower()
         if hasattr(self, fname):
             fn = getattr(self, fname)
@@ -262,6 +263,7 @@ class PyCFG(PyCFG):
         """
         Assign(expr* targets, expr value)
         """
+        #print(node, ast.dump(node))
         if len(node.targets) > 1:
             print(node, ast.dump(node))
             raise NotImplemented('Parallel assignments')
@@ -408,6 +410,7 @@ class PyCFG(PyCFG):
 
 class PyCFG(PyCFG):
     def on_call(self, node, myparents):
+        #print('call', ast.dump(node))
         def get_func(node):
             #print(type(node.func), ast.dump(node.func))
             if type(node.func) is ast.Name:
@@ -431,7 +434,9 @@ class PyCFG(PyCFG):
         for a in node.args:
             p = self.walk(a, p)
         mid = get_func(node)
+        #print('mid',mid)
         myparents[0].add_calls(mid)
+        #print(myparents[0])
 
         # these need to be unlinked later if our module actually defines these
         # functions. Otherwsise we may leave them around.
@@ -473,6 +478,12 @@ class PyCFG(PyCFG):
         # control flow
         # name, args, body, decorator_list, returns
         fname = node.name
+        if fname=='__init__':  #__init__ function for a class
+            #change fname to the class name so we can build link between class instance and __init__ function
+            assert node.parent.__class__.__name__=='ClassDef'  #the parent node of __init__ function should be a class
+            classname=node.parent.name
+            fname=classname
+        #print(fname)
         args = node.args
         returns = node.returns
 
@@ -565,6 +576,11 @@ class PyCFG(PyCFG):
         5
         """
         node = self.parse(src)
+
+        for nd in ast.walk(node): #add parent link
+            for child in ast.iter_child_nodes(nd):
+                child.parent = nd
+
         nodes = self.walk(node, [self.founder])
         self.last_node = CFGNode(parents=nodes, ast=ast.parse('stop').body[0])
         ast.copy_location(self.last_node.ast_node, self.founder.ast_node)
